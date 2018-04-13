@@ -1,40 +1,54 @@
 %{
-double mem[26]; // memory for variables 'a'..'z'
+#include "hoc.h"
+extern double Pow();
 %}
-%union {               // stack type
+%union {
     double val;        // actual value
-    int index;         // index into mem[]
+    Symbol *sym;       // symbol table pointer
 }
 %token  <val>           NUMBER
-%token  <index>         VAR
-%type   <val>           expr
+%token  <sym>           VAR BLTIN UNDEF
+%type   <val>           expr asgn
 %right                  '='
 %left                   '+' '-'
-%left                   UNARYPLUS
 %left                   '*' '/' '%'
+%left                   UNARYPLUS
 %left                   UNARYMINUS
+%right                  '^'
 %%
 list:   //      nothing
         |       list '\n'
+        |       list asgn '\n'
         |       list expr '\n' { printf("\t%.8g\n", $2); }
         |       list error '\n' { yyerrok; }
+        ;
+asgn:           VAR '=' expr { $$ = $1->u.val = $3; $1->type = VAR; }
+        ;
 expr:           NUMBER
-        |       VAR              { $$ = mem[$1]; }
-        |       VAR '=' expr     { $$ = mem[$1] = $3; }
-        |       expr '+' expr    { $$ = $1 + $3; }
-        |       expr '-' expr    { $$ = $1 - $3; }
-        |       expr '*' expr    { $$ = $1 * $3; }
-        |       expr '/' expr    {
-         if ($3 == 0.0) {
-             execerror("division by zero", "");
-         }
-         $$ = $1 / $3;
-         }
-        // It would be nice to distinguish between integer and floating point modulo operations
-        |       expr '%' expr      { $$ = fmod($1, $3); } 
-        |       '(' expr ')'     { $$ = $2; }
-        |       '-' expr %prec UNARYMINUS { $$ = -$2; }
+        |       VAR              {
+                                      if ($1->type == UNDEF) {
+                                          execerror("Undefined variable", $1->name);
+                                      }
+                                      $$ = $1->u.val;
+                                 }
+        |       asgn
+        |       BLTIN '(' expr ')' { $$ = (*($1->u.ptr))($3); }
+        |       expr '+' expr      { $$ = $1 + $3; }
+        |       expr '-' expr      { $$ = $1 - $3; }
+        |       expr '*' expr      { $$ = $1 * $3; }
+        |       expr '/' expr      {
+                                        if ($3 == 0.0) {
+                                            execerror("division by zero", "");
+                                        }
+                                        $$ = $1 / $3;
+                                   }
+        // It would be nice to distinguish between integer and floating point
+        // modulo operations in the future.
+        |       expr '%' expr      { $$ = fmod($1, $3); }
+        |       expr '^' expr      { $$ = Pow($1, $3); }
+        |       '(' expr ')'       { $$ = $2; }
         |       '+' expr %prec UNARYPLUS { $$ = +$2; }
+        |       '-' expr %prec UNARYMINUS { $$ = -$2; }
                 ;
 %%
 
@@ -67,9 +81,18 @@ int yylex() {
         return NUMBER;
     }
 
-    if (islower(c)) {
-        yylval.index = c - 'a'; // ASCII only
-        return VAR;
+    if (isalpha(c)) {
+        char sbuf[100], *p = sbuf;
+        do {
+            *p++ = c;
+        } while ((c = getchar()) != EOF && isalnum(c));
+        ungetc(c, stdin);
+        *p = '\0';
+        if ((Symbol *s = lookup(sbuf)) == 0) {
+            s = install(sbuf, UNDEF, 0.0);
+        }
+        yylval.sym = s;
+        return s->type == UNDEF ? VAR : s->type;
     }
 
     if (c == '\n') {
@@ -102,6 +125,7 @@ int fpecatch() {
 
 int main(int argc, char *argv[]) {
     progname = argv[0];
+    init();
     setjmp(begin);
     signal(SIGFPE, fpecatch);
     yyparse();
