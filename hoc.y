@@ -1,9 +1,10 @@
 %{
-#define YYSTYPE double // data type of yacc stack 
+#define YYSTYPE double // data type of yacc stack
 %}
 %token                  NUMBER
-%left                   '+' '-' // left associative, same precedence
-%left                   '*' '/' // left associative, higher precedence
+%left                   '+' '-'
+%left                   UNARYPLUS
+%left                   '*' '/' '%'
 %left                   UNARYMINUS
 %%
 list:   //      nothing
@@ -11,18 +12,21 @@ list:   //      nothing
         |       list expr '\n' { printf("\t%.8g\n", $2); }
 expr:           NUMBER           { $$ = $1; }
         |       '-' expr %prec UNARYMINUS { $$ = -$2; }
+        |       '+' expr %prec UNARYPLUS { $$ = +$2; }
         |       expr '+' expr    { $$ = $1 + $3; }
-        |       expr '-' expr    { $$ = $1 - $3; } 
-        |       expr '*' expr    { $$ = $1 * $3; } 
-        |       expr '/' expr    { $$ = $1 / $3; } 
-        | '('   expr ')'     { $$ = $2; }
+        |       expr '-' expr    { $$ = $1 - $3; }
+        |       expr '*' expr    { $$ = $1 * $3; }
+        |       expr '/' expr    { $$ = $1 / $3; }
+        |       expr '%' expr      { $$ = fmod($1, $3); }
+        |       '(' expr ')'     { $$ = $2; }
                 ;
 %%
 
         // end of grammar
 
-#include <stdio.h>
 #include <ctype.h>
+#include <math.h>
+#include <stdio.h>
 
 char *progname;
 int lineno = 1;
@@ -34,10 +38,11 @@ int main(int argc, char *argv[]) {
 
 int yylex() {
     int c;
+
     while ((c = getchar()) == ' ' || c == '\t') {
         ;
     }
-    
+
     if (c == EOF) {
         return 0;
     }
@@ -51,7 +56,7 @@ int yylex() {
     if (c == '\n') {
         lineno++;
     }
-    
+
     return c;
 }
 
