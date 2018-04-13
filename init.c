@@ -2,7 +2,7 @@
 #include "y.tab.h"
 #include <math.h>
 
-extern double Log(), Log10(), Exp(), Sqrt(), integer();
+extern double Log(), Log10(), Exp(), Sqrt(), Integer();
 
 static struct {
     char *name;
@@ -26,7 +26,7 @@ static struct {
     "log10", Log10,    // Checks argument
     "exp", Exp,        // Checks argument
     "sqrt", Sqrt,      // Checks argument
-    "int", integer,
+    "int", Integer,
     "abs", fabs,
     0, 0
 };

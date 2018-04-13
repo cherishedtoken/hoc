@@ -8,4 +8,4 @@ typedef struct Symbol {
     struct Symbol *next;
 } Symbol;
 
-Symbol install(), *lookup();
+Symbol *install(), *lookup();

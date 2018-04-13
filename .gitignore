@@ -1,2 +1,9 @@
-*~ # Emacs backup files
-hoc # compiled binary
+# Emacs backup and temp files
+*.*~
+\#*#
+
+# Ignore generated files and the binary
+*.o
+y.tab.h
+hoc.c
+hoc

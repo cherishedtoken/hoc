@@ -1,6 +1,10 @@
 %{
 #include "hoc.h"
+#include <math.h>
+#include <stdio.h>
+
 extern double Pow();
+extern int execerror(char*, char*);
 %}
 %union {
     double val;        // actual value
@@ -63,6 +67,7 @@ expr:           NUMBER
 char *progname;
 int lineno = 1;
 jmp_buf begin;
+extern int init();
 
 int yylex() {
     int c;
@@ -82,13 +87,14 @@ int yylex() {
     }
 
     if (isalpha(c)) {
+        Symbol *s;
         char sbuf[100], *p = sbuf;
         do {
             *p++ = c;
         } while ((c = getchar()) != EOF && isalnum(c));
         ungetc(c, stdin);
         *p = '\0';
-        if ((Symbol *s = lookup(sbuf)) == 0) {
+        if ((s = lookup(sbuf)) == 0) {
             s = install(sbuf, UNDEF, 0.0);
         }
         yylval.sym = s;

@@ -1,6 +1,9 @@
 #include "hoc.h"
 #include "y.tab.h"
+#include <stdlib.h>
+#include <string.h>
 
+extern int execerror(char*, char*);
 static Symbol *symlist = 0; // symbol table: linked list
 
 char *emalloc(unsigned n) { // check return from malloc

@@ -30,8 +30,8 @@ double Sqrt(double x) {
     return errcheck(sqrt(x), "sqrt");
 }
 
-double Pow(double x) {
-    return errcheck(pow(x), "exponentiation");
+double Pow(double x, double y) {
+    return errcheck(pow(x, y), "exponentiation");
 }
 
 double Integer(double x) {
