@@ -17,7 +17,8 @@ expr:           NUMBER           { $$ = $1; }
         |       expr '-' expr    { $$ = $1 - $3; }
         |       expr '*' expr    { $$ = $1 * $3; }
         |       expr '/' expr    { $$ = $1 / $3; }
-        |       expr '%' expr      { $$ = fmod($1, $3); }
+        // It would be nice to distinguish between integer and floating point modulo operations
+        |       expr '%' expr      { $$ = fmod($1, $3); } 
         |       '(' expr ')'     { $$ = $2; }
                 ;
 %%
