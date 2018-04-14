@@ -1,9 +1,10 @@
 # Emacs backup and temp files
-*.*~
+*~
 \#*#
 
 # Ignore generated files and the binary
 *.o
-y.tab.h
+[xy].tab.h
 hoc.c
 hoc
+lex.l

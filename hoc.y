@@ -1,18 +1,13 @@
 %{
 #include "hoc.h"
-#include <math.h>
-#include <stdio.h>
-
-extern double Pow();
-extern int execerror(char*, char*);
+#define code2(c1, c2)      code(c1); code(c2)
+#define code3(c1, c2, c3)  code(c1); code(c2); code(c3)
 %}
 %union {
-    double val;        // actual value
     Symbol *sym;       // symbol table pointer
+    Inst *inst;        // machine instruction
 }
-%token  <val>           NUMBER
-%token  <sym>           VAR BLTIN UNDEF
-%type   <val>           expr asgn
+%token  <sym>           NUMBER VAR BLTIN UNDEF
 %right                  '='
 %left                   '+' '-'
 %left                   '*' '/' '%'
@@ -22,41 +17,27 @@ extern int execerror(char*, char*);
 %%
 list:   //      nothing
         |       list '\n'
-        |       list asgn '\n'
-        |       list expr '\n' { printf("\t%.8g\n", $2); }
+        |       list asgn '\n'  { code2(pop, STOP); return 1; }
+        |       list expr '\n'  { code2(print, STOP); return 1; }
         |       list error '\n' { yyerrok; }
         ;
-asgn:           VAR '=' expr { $$ = $1->u.val = $3; $1->type = VAR; }
+asgn:           VAR '=' expr { code3(varpush, (Inst)$1, assign); }
         ;
-expr:           NUMBER
-        |       VAR              {
-                                      if ($1->type == UNDEF) {
-                                          execerror("Undefined variable", $1->name);
-                                      }
-                                      $$ = $1->u.val;
-                                 }
+expr:           NUMBER           { code2(constpush, (Inst)$1); }
+        |       VAR              { code3(varpush, (Inst)$1, eval); }
         |       asgn
-        |       BLTIN '(' expr ')' { $$ = (*($1->u.ptr))($3); }
-        |       expr '+' expr      { $$ = $1 + $3; }
-        |       expr '-' expr      { $$ = $1 - $3; }
-        |       expr '*' expr      { $$ = $1 * $3; }
-        |       expr '/' expr      {
-                                        if ($3 == 0.0) {
-                                            execerror("division by zero", "");
-                                        }
-                                        $$ = $1 / $3;
-                                   }
-        // It would be nice to distinguish between integer and floating point
-        // modulo operations in the future.
-        |       expr '%' expr      { $$ = fmod($1, $3); }
-        |       expr '^' expr      { $$ = Pow($1, $3); }
-        |       '(' expr ')'       { $$ = $2; }
-        |       '+' expr %prec UNARYPLUS { $$ = +$2; }
-        |       '-' expr %prec UNARYMINUS { $$ = -$2; }
+        |       BLTIN '(' expr ')' { code2(bltin, (Inst)$1->u.ptr); }
+        |       '('expr ')'
+        |       expr '+' expr      { code(add); }
+        |       expr '-' expr      { code(sub); }
+        |       expr '*' expr      { code(mul); }
+        |       expr '/' expr      { code(divide); }
+        |       expr '%' expr      { code(mod); }
+        |       expr '^' expr      { code(power); }
+        |       '+' expr %prec UNARYPLUS { code(posit); }
+        |       '-' expr %prec UNARYMINUS { code(negate); }
                 ;
 %%
-
-        // end of grammar
 
 #include <ctype.h>
 #include <math.h>
@@ -81,8 +62,10 @@ int yylex() {
     }
 
     if (c == '.' || isdigit(c)) { // number
+        double d;
         ungetc(c, stdin);
-        scanf("%lf", &yylval.val);
+        scanf("%lf", &d);
+        yylval.sym = install("", NUMBER, d);
         return NUMBER;
     }
 
@@ -134,5 +117,8 @@ int main(int argc, char *argv[]) {
     init();
     setjmp(begin);
     signal(SIGFPE, fpecatch);
-    yyparse();
+    for (initcode(); yyparse(); initcode()) {
+        execute(prog);
+    }
+    return 0;
 }
