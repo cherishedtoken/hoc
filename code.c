@@ -14,10 +14,25 @@ static Datum *stackp; // next free spot on the stack
 Inst prog[NPROG]; // the machine
 Inst *progp; // next free spot for code generation
 Inst *pc; // program counter during execution
+Inst *progbase = prog; // start of current subprogram
+int returning; // 1 if return stmt seen
+
+typedef struct Frame { // proc/func call stack frame
+    Symbol *sp; // symbol table entry
+    Inst *retpc; // where to resume after return
+    Datum *argn; // n-th argument on stack
+    int nargs; // number of args
+} Frame;
+
+#define NFRAME 100
+Frame frame[NFRAME];
+Frame *fp; // frame pointer
 
 void initcode() {
+    progp = progbase;
     stackp = stack;
-    progp = prog;
+    fp = frame;
+    returning = 0;
 }
 
 void push(Datum d) {
@@ -44,7 +59,7 @@ Inst *code(Inst f) { // Install one instruction or operand
 }
 
 void execute(Inst *p) {
-    for (pc = p; *pc != STOP; ) {
+    for (pc = p; *pc != STOP && !returning; ) {
         (*(*pc++))();
     }
 }
@@ -233,10 +248,16 @@ void whilecode() {
     Datum d = pop();
     while (d.val) {
         execute(*((Inst **)(savepc))); // body
+        if (returning) {
+            break;
+        }
         execute(savepc + 2);
         d = pop();
     }
-    pc = *((Inst **)(savepc + 1)); // next statement
+
+    if (!returning) {
+        pc = *((Inst **)(savepc + 1)); // next statement
+    }
 }
 
 void ifcode() {
@@ -249,10 +270,104 @@ void ifcode() {
     } else if (*((Inst **)(savepc + 1))) { // else part?
         execute(*((Inst **)(savepc + 1)));
     }
-    pc = *((Inst **)(savepc + 2)); // next statement
+    
+    if (!returning) {
+        pc = *((Inst **)(savepc + 2)); // next statement
+    }
 }
 
-void prexpr() {
+void prstr() { // print string value
+    printf("%s", (char *) *pc++);
+}
+
+void prexpr() { // print numeric value
     Datum d = pop();
     printf("%.8g\n", d.val);
+}
+
+void define(Symbol *sp) { // put func/proc in symbol table
+    sp->u.defn = (Inst)progbase; // start of code
+    progbase = progp; // next code starts here
+}
+
+void call() {
+    Symbol *sp = (Symbol *)pc[0]; // symtable entry for function
+    if (fp++ >= &frame[NFRAME - 1]) {
+        execerror(sp->name, "call nested too deeply");
+    }
+    fp->sp = sp;
+    fp->nargs = (int)pc[1];
+    fp->retpc = pc + 2;
+    fp->argn = stackp - 1; // last arg
+    execute(sp->u.defn);
+    returning = 0;
+}
+
+void ret() { // common return from func or proc
+    for (int i = 0; i < fp->nargs; i++) {
+        pop(); // pop args
+    }
+    pc = (Inst *)fp->retpc;
+    --fp;
+    returning = 1;
+}
+
+void procret() {
+    if (fp->sp->type == FUNCTION) {
+        execerror(fp->sp->name, "(func) returns no value");
+    }
+    ret();
+}
+
+void funcret() {
+    if (fp->sp->type == PROCEDURE) {
+        execerror(fp->sp->name, "(proc) returns value");
+    }
+    Datum d = pop(); // preserve function return value
+    ret();
+    push(d);
+}
+
+double *getarg() { // return pointer to argument
+    int nargs = (int) *pc++;
+    if (nargs > fp->nargs) {
+        execerror(fp->sp->name, "not enough arguments");
+    }
+    return &fp->argn[nargs - fp->nargs].val;
+}
+
+void arg() { // push arg onto stack
+    Datum d;
+    d.val = *getarg();
+    push(d);
+}
+
+void argassign() { // store top of stack in arg
+    Datum d = pop();
+    push(d); // leave val on stack
+    *getarg() = d.val;
+}
+
+void varread() { // read into variable
+    Datum d;
+    extern FILE *fin;
+    Symbol *var = (Symbol *) *pc++;
+    
+ Again:
+    switch(fscanf(fin, "%lf", &var->u.val)) {
+    case EOF:
+        if (moreinput()) {
+            goto Again; // gah
+        }
+        d.val = var->u.val = 0.0;
+        break;
+    case 0:
+        execerror("non-number read into", var->name);
+        break;
+    default:
+        d.val = 1.0;
+        break;
+    }
+    var->type = VAR;
+    push(d);
 }

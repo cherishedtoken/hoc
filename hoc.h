@@ -1,9 +1,11 @@
 typedef struct Symbol { // symbol table entry
     char *name;
-    short type;             // VAR, BLTIN, UNDEF
+    short type;
     union {
-        double val;         // if VAR
-        double (*ptr)();    // if BLTIN
+        double val;         // VAR
+        double (*ptr)();    // BLTIN
+        int    (*defn)();   // FUNCTION, PROCEDURE
+        char   *str;        // STRING
     } u;
     struct Symbol *next;
 } Symbol;
@@ -22,5 +24,7 @@ typedef int (*Inst)(); // machine instruction
 extern Inst prog[], *progp, *code(Inst);
 extern void eval(), add(), sub(), mul(), divide(), mod(), negate(), posit(),
     power(), assign(), bltin(), varpush(), constpush(), print(), initcode(),
-    execute(Inst*), prexpr(), gt(), lt(), eq(), ge(), le(), ne(), and(), or(),
-    not(), ifcode(), whilecode();
+    execute(Inst*), prstr(), prexpr(), gt(), lt(), eq(), ge(), le(), ne(),
+    and(), or(), not(), ifcode(), whilecode(), define(Symbol *), call(), ret(),
+    procret(), funcret(), arg(), argassign(), varread();
+extern double *getarg();
