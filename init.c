@@ -36,10 +36,14 @@ static struct {
     char *name;
     int kval;
 } keywords[] = {
+    "proc",      PROC,
+    "func",      FUNC,
+    "return",    RETURN,
     "if",        IF,
     "else",      ELSE,
     "while",     WHILE,
     "print",     PRINT,
+    "read",      READ,
     0,           0,
 };
 

@@ -141,6 +141,9 @@ void posit() {
 
 void eval() {
     Datum d = pop();
+    if (d.sym->type != VAR && d.sym->type != UNDEF) {
+        execerror("attempt to evaluate non-variable", d.sym->name);
+    }
     if (d.sym->type == UNDEF) {
         execerror("Undefined variable", d.sym->name);
     }
