@@ -15,6 +15,7 @@ static struct {
     "PHI",     1.61803398874989484820,
     0,         0
 };
+
 static struct {
     char *name;
     double (*func)();
@@ -31,6 +32,17 @@ static struct {
     0, 0
 };
 
+static struct {
+    char *name;
+    int kval;
+} keywords[] = {
+    "if",        IF,
+    "else",      ELSE,
+    "while",     WHILE,
+    "print",     PRINT,
+    0,           0,
+};
+
 int init() {
     for (int i = 0; consts[i].name; i++) {
         install(consts[i].name, VAR, consts[i].cval);
@@ -39,5 +51,9 @@ int init() {
     for (int j = 0; builtins[j].name; j++) {
         Symbol *s = install(builtins[j].name, BLTIN, 0.0);
         s->u.ptr = builtins[j].func;
+    }
+
+    for (int k = 0; keywords[k].name; k++) {
+        install(keywords[k].name, keywords[k].kval, 0.0);
     }
 }

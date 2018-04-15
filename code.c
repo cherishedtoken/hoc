@@ -124,7 +124,6 @@ void posit() {
     push(d);
 }
 
-
 void eval() {
     Datum d = pop();
     if (d.sym->type == UNDEF) {
@@ -157,3 +156,103 @@ void bltin() {
     push(d);
 }
 
+void gt() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val > d2.val);
+    push(d1);
+}
+
+void lt() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val < d2.val);
+    push(d1);
+}
+
+void eq() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val == d2.val);
+    push(d1);
+}
+
+void ge() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val >= d2.val);
+    push(d1);
+}
+
+void le() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val <= d2.val);
+    push(d1);
+}
+
+void ne() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val != d2.val);
+    push(d1);
+}
+
+void and() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val && d2.val);
+    push(d1);
+}
+
+void or() {
+    Datum d1, d2;
+    d2 = pop();
+    d1 = pop();
+    d1.val = (double)(d1.val || d2.val);
+    push(d1);
+}
+
+void not() {
+    Datum d = pop();
+    d.val = (double)(d.val == 0.0);
+    push(d);
+}
+
+void whilecode() {
+    Inst *savepc = pc; // loop body
+    
+    execute(savepc + 2); // condition
+    Datum d = pop();
+    while (d.val) {
+        execute(*((Inst **)(savepc))); // body
+        execute(savepc + 2);
+        d = pop();
+    }
+    pc = *((Inst **)(savepc + 1)); // next statement
+}
+
+void ifcode() {
+    Inst *savepc = pc; // then part
+    
+    execute(savepc + 3); // condition
+    Datum d = pop();
+    if (d.val) {
+        execute(*((Inst **)(savepc)));
+    } else if (*((Inst **)(savepc + 1))) { // else part?
+        execute(*((Inst **)(savepc + 1)));
+    }
+    pc = *((Inst **)(savepc + 2)); // next statement
+}
+
+void prexpr() {
+    Datum d = pop();
+    printf("%.8g\n", d.val);
+}
