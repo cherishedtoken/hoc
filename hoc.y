@@ -12,7 +12,8 @@ extern int indef;
 %token  <sym>           NUMBER STRING PRINT VAR BLTIN UNDEF WHILE IF ELSE
 %token  <sym>           FUNCTION PROCEDURE RETURN FUNC PROC READ
 %token  <narg>          ARG
-%type   <inst>          expr stmt asgn prlist stmtlist cond while if begin end
+%type   <inst>          expr stmt asgn prlist stmtlist
+%type   <inst>          cond while if begin end
 %type   <sym>           procname
 %type   <narg>          arglist
 %right                  '='
@@ -73,8 +74,8 @@ stmtlist:       /* nothing */ { $$ = progp; }
         |       stmtlist '\n'
         |       stmtlist stmt
         ;
-expr:           NUMBER           { code2(constpush, (Inst)$1); }
-        |       VAR              { code3(varpush, (Inst)$1, eval); }
+expr:           NUMBER           { $$ = code2(constpush, (Inst)$1); }
+        |       VAR              { $$ = code3(varpush, (Inst)$1, eval); }
         |       ARG              { defnonly("$"); $$ = code2(arg, (Inst)$1); }
         |       asgn
         |       FUNCTION begin '(' arglist ')' {
@@ -131,17 +132,17 @@ arglist:        /* nothing */    { $$ = 0; }
 #include <strings.h>
 
 char *progname, *infile, **gargv;
-int lineno = 1, indef, gargc;
+int lineno = 1, indef, gargc, c;
 jmp_buf begin;
 FILE *fin; // input file pointer
 extern int init();
 
 int follow(int expect, int ifyes, int ifno) {
-    int c = getchar();
+    int c = getc(fin);
     if (c == expect) {
         return ifyes;
     }
-    ungetc(c, stdin);
+    ungetc(c, fin);
     return ifno;
 }
 
@@ -183,10 +184,49 @@ int backslash(int c) { // get next char with \'s interpreted
     return c;
 }
 
-int yylex() {
-    int c;
+int warning(char *s, char *t) {
+    fprintf(stderr, "%s: %s", progname, s);
+    if (t) {
+        fprintf(stderr, " %s", t);
+    }
+    if (infile) {
+        fprintf(stderr, " in %s", infile);
+    }
+    fprintf(stderr, " near line %d\n", lineno);
+    while (c != '\n' && c != EOF) {
+        c = getc(fin); // flush rest of input line
+    }
+    if (c == '\n') {
+        lineno++;
+    }
+}
 
-    while ((c = getchar()) == ' ' || c == '\t') {
+int yyerror(char *s) {
+    warning(s, NULL);
+}
+
+int execerror(char *s, char *t) {
+    warning(s, t);
+    fseek(fin, 0L, 2); // flush rest of file
+    longjmp(begin, 0);
+}
+
+int fpecatch() {
+    execerror("Floating point exception", NULL);
+}
+
+int run() { // execute until EOF
+    extern Inst *progbase;
+    
+    setjmp(begin);
+    signal(SIGFPE, fpecatch);
+    for (initcode(); yyparse(); initcode()) {
+        execute(progbase);
+    }
+}
+
+int yylex() {
+    while ((c = getc(fin)) == ' ' || c == '\t') {
         ;
     }
 
@@ -196,8 +236,8 @@ int yylex() {
 
     if (c == '.' || isdigit(c)) { // number
         double d;
-        ungetc(c, stdin);
-        scanf("%lf", &d);
+        ungetc(c, fin);
+        fscanf(fin, "%lf", &d);
         yylval.sym = install("", NUMBER, d);
         return NUMBER;
     }
@@ -206,9 +246,13 @@ int yylex() {
         Symbol *s;
         char sbuf[100], *p = sbuf;
         do {
+            if (p >= sbuf + sizeof(sbuf) - 1) {
+                *p = '\0';
+                execerror("name too long", sbuf);
+            }
             *p++ = c;
-        } while ((c = getchar()) != EOF && isalnum(c));
-        ungetc(c, stdin);
+        } while ((c = getc(fin)) != EOF && isalnum(c));
+        ungetc(c, fin);
         *p = '\0';
         if ((s = lookup(sbuf)) == 0) {
             s = install(sbuf, UNDEF, 0.0);
@@ -260,34 +304,21 @@ int yylex() {
     }
 }
 
-int yyerror(char *s) {
-    warning(s, NULL);
-}
-
-int warning(char *s, char *t) {
-    fprintf(stderr, "%s: %s", progname, s);
-    if (t) {
-        fprintf(stderr, " %s", t);
-    }
-    fprintf(stderr, " near line %d\n", lineno);
-}
-
-int execerror(char *s, char *t) {
-    warning(s, t);
-    longjmp(begin, 0);
-}
-
-int fpecatch() {
-    execerror("Floating point exception", NULL);
-}
-
 int main(int argc, char *argv[]) {
     progname = argv[0];
+    if (argc == 1) { // fake an argument list
+        static char *stdinonly[] = { "-" };
+
+        gargv = stdinonly;
+        gargc = 1;
+    } else {
+        gargv = argv + 1;
+        gargc = argc - 1;
+    }
     init();
-    setjmp(begin);
-    signal(SIGFPE, fpecatch);
-    for (initcode(); yyparse(); initcode()) {
-        execute(prog);
+    
+    while (moreinput()) {
+        run();
     }
     return 0;
 }
